@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Invaders Game - Synthwave Edition</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1a0123; /* Darker synthwave background */
+            color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: #ff07eb; /* Neon Pink */
+            text-shadow: 0 0 5px #ff07eb, 0 0 10px #ff07eb;
+        }
+        #module-container, #audio-controls-container {
+            border: 1px solid #4f007a; /* Dark Purple */
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #2c003e; /* Mid Purple */
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(79, 0, 122, 0.7);
+            width: 986px; /* Match new canvas width + padding */
+            box-sizing: border-box;
+        }
+        .display-canvas {
+            border: 3px solid #ff07eb; /* Neon pink border */
+            box-shadow: 0 0 15px rgba(255, 7, 235, 0.5), 0 0 30px rgba(255, 7, 235, 0.3) inset; /* Pink glow */
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-row {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .control-row:last-child {
+             margin-bottom: 0;
+        }
+        .control-row label {
+            color: #f0c4ff; /* Light Lavender/Pink */
+            text-shadow: 0 0 3px #f0c4ff;
+            flex-shrink: 0;
+        }
+        .control-row select, .control-row button, .control-row input[type="range"],
+        #keyboard-controls button {
+            background-color: #4f007a; /* Dark Purple */
+            color: #e0e7ff; /* Light Lavender */
+            border: 1px solid #ff07eb; /* Neon Pink */
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-shadow: 0 0 2px #e0e7ff;
+            box-shadow: 0 0 5px rgba(255, 7, 235, 0.3);
+            flex-grow: 1;
+        }
+        .control-row input[type="range"] {
+             padding: 0;
+        }
+        .control-row select:hover, .control-row button:hover, .control-row input[type="range"]:hover,
+        #keyboard-controls button:hover {
+            background-color: #6a00a3; /* Brighter Purple */
+            box-shadow: 0 0 10px rgba(255, 7, 235, 0.6);
+        }
+        .control-row select:disabled, .control-row button:disabled {
+            background-color: #3c005a;
+            color: #7c5295;
+            cursor: not-allowed;
+            box-shadow: none;
+            text-shadow: none;
+        }
+
+        #simulated-keyboard-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #2c003e;
+            border-radius: 8px;
+            border: 1px solid #4f007a;
+            box-shadow: 0 0 15px rgba(79, 0, 122, 0.5);
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        #keyboard-controls {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #octave-display {
+            margin: 0 10px;
+            color: #f0c4ff;
+            font-weight: bold;
+            text-shadow: 0 0 3px #f0c4ff;
+        }
+        #simulated-keyboard {
+            position: relative;
+            border: 1px solid #4f007a;
+            background-color: #1e002a;
+            user-select: none;
+            border-radius: 4px;
+            padding: 5px;
+            box-shadow: 0 0 10px rgba(79, 0, 122, 0.4) inset;
+            margin-bottom: 20px; /* Space for QWERTY labels */
+        }
+        .key {
+            position: absolute;
+            border: 1px solid #100014;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 8px;
+            cursor: pointer;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 3px;
+            transition: background-color 0.1s ease, box-shadow 0.1s ease;
+        }
+        .key:active, .key.active-key {
+            filter: brightness(0.9);
+            box-shadow: 0 0 5px #03dac5; /* Cyan click feedback */
+        }
+        .white-key {
+            background-color: #d7bde2; /* Light purple-ish white */
+            color: #3c005a;
+            z-index: 1; 
+        }
+        .black-key {
+            background-color: #4f007a; /* Dark Purple */
+            color: #f0c4ff; /* Light Lavender/Pink */
+            border-color: #ff07eb; /* Pink outline for black keys */
+            z-index: 2;
+        }
+        .key-label {
+            position: absolute;
+            color: #f0c4ff;
+            font-size: 10px;
+            font-family: monospace;
+            text-align: center;
+            user-select: none;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>CHORD INVADERS</h1>
+
+    <div id="module-container">
+        <p style="text-align: center;">Loading Chord Invaders Module...</p>
+    </div>
+
+    <div id="audio-controls-container">
+        <div class="control-row">
+            <label for="keys_volume">Keys Vol:</label>
+            <input type="range" id="keys_volume" min="0" max="1" step="0.05" value="0.7">
+        </div>
+         <div class="control-row">
+            <label for="midi_in_select">MIDI In:</label>
+            <select id="midi_in_select" style="flex-grow:1;"><option value="all">Listen to All</option></select>
+        </div>
+         <div class="control-row">
+            <label for="midi_out_select">MIDI Out:</label>
+            <select id="midi_out_select" style="flex-grow:1;"><option value="">None</option></select>
+        </div>
+    </div>
+    
+    <div id="simulated-keyboard-area">
+        <div id="keyboard-controls">
+             <!-- Populated by script -->
+        </div>
+        <div id="simulated-keyboard">
+             <!-- Populated by script -->
+        </div>
+    </div>
+
+    <script>
+        // --- START OF HOST APPLICATION SCRIPT ---
+        window.audioContext = null; window.keysMasterGain = null; window.activeNotes = {}; window.octaveShift = 0; window.registeredModules = {}; window.selectedMidiOutput = null; window.midiKeyPositions = {};
+        try { window.audioContext = new (window.AudioContext || window.webkitAudioContext)(); window.keysMasterGain = window.audioContext.createGain(); window.keysMasterGain.connect(window.audioContext.destination); window.keysMasterGain.gain.value = 0.7;
+        } catch (e) { alert("Web Audio API is not supported in this browser."); console.error("Failed to create AudioContext:", e); }
+        window.playNote = function(noteId, freq, velocity, keyEl, isSeq, stepVol) {
+            if (window.selectedMidiOutput) window.selectedMidiOutput.send([0x90, noteId, velocity || 100]);
+            if (!window.audioContext || window.activeNotes[noteId]) return;
+            const now = audioContext.currentTime, osc = audioContext.createOscillator(); osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq || 440 * Math.pow(2, (noteId - 69) / 12), now);
+            const gainNode = audioContext.createGain(); gainNode.connect(window.keysMasterGain);
+            const attackTime = 0.02, decayTime = 0.1, sustainLevel = 0.7, noteVelocity = velocity ? velocity / 127 : 0.8;
+            gainNode.gain.setValueAtTime(0, now); gainNode.gain.linearRampToValueAtTime(noteVelocity, now + attackTime); gainNode.gain.linearRampToValueAtTime(noteVelocity * sustainLevel, now + attackTime + decayTime);
+            osc.connect(gainNode); osc.start(now); window.activeNotes[noteId] = { osc, gainNode };
+        };
+        window.stopNote = function(noteId, keyEl, isSeq) {
+            if (window.selectedMidiOutput) window.selectedMidiOutput.send([0x80, noteId, 0]);
+            if (!window.audioContext || !window.activeNotes[noteId]) return;
+            const now = audioContext.currentTime, { osc, gainNode } = window.activeNotes[noteId], releaseTime = 0.3;
+            gainNode.gain.cancelScheduledValues(now); gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
+            osc.stop(now + releaseTime); delete window.activeNotes[noteId];
+        };
+        window.registerSynthModule = function(ModuleClass) {
+            if (!window.audioContext) { document.getElementById('module-container').innerHTML = "<p style='color:red;'>Error: AudioContext not available.</p>"; return; }
+            try { const instance = new ModuleClass(window.audioContext); window.registeredModules[instance.id] = instance;
+                const moduleContainer = document.getElementById('module-container'); if (moduleContainer) { moduleContainer.innerHTML = instance.getHTML(); instance.initUI(moduleContainer); }
+            } catch (e) { console.error("Error initializing module:", e); document.getElementById('module-container').innerHTML = `<p style='color:red;'>Error: ${e.message}</p>`; }
+        };
+        // --- END OF HOST APPLICATION SCRIPT ---
+    </script>
+
+    <script>
+        // --- START OF ChordInvadersModule.js CODE ---
+class ChordInvadersModule {
+    constructor(audioContext) {
+        this.audioContext = audioContext; this.id = 'chordInvadersModule'; this.nodes = { output: this.audioContext.createGain() }; this.nodes.output.connect(this.audioContext.destination); this.nodes.output.gain.value = 0.4;
+        this.gameState = 'idle'; this.playerNotes = new Set(); this.aliens = []; this.lasers = []; this.score = 0; this.gameLoop = null; this.lives = 3;
+        this.rootNote = 60; this.scaleType = 'major'; this.difficulty = 'easy'; this.scales = { 'major': [0, 2, 4, 5, 7, 9, 11], 'natural_minor': [0, 2, 3, 5, 7, 8, 10] };
+        this.NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        this.chordFormulas={'maj':[0,4,7],'min':[0,3,7],'dim':[0,3,6],'maj7':[0,4,7,11],'min7':[0,3,7,10],'dom7':[0,4,7,10],'maj9':[0,4,7,11,14],'min9':[0,3,7,10,14],'min11':[0,3,7,10,14,17],'dom13':[0,4,7,10,14,17,21]};
+        this.CHORD_TYPES={'0,4,7':'Maj','0,3,7':'min','0,3,6':'dim','0,4,7,11':'Maj7','0,3,7,10':'min7','0,4,7,10':'dom7','0,2,4,7,11':'Maj9','0,2,3,7,10':'min9','0,2,3,5,7,10':'min11','0,2,4,5,7,9,10':'dom13'};
+        this.stars = []; this.currentWaveNumber = 1; this.alienBaseSpeed = 0.25; this.alienSpeedIncreasePerWave = 0.03; this.maxAlienSpeed = 1.2;
+        this.currentChordName = ''; this.isCorrectChord = false; this.celebrationFlash = 0; this.hurtFlash = 0; this.celebrationChordName = ''; this.celebrationTimer = 0;
+        this._patchNoteHandlers();
+    }
+    _patchNoteHandlers() {
+        const oPlay = window.playNote, oStop = window.stopNote;
+        window.playNote = (id, f, v, k, i, s) => { oPlay(id, f, v, k, i, s); if (this.gameState==='playing'&&!i) { const m=this._getMidiNote(id, k); if (m!==null) {this.playerNotes.add(m); this._updateChordDisplay(); this._checkPlayerInput();}}};
+        window.stopNote = (id, k, i) => { oStop(id, k, i); if(this.gameState==='playing'&&(i===undefined||!i)) { const m=this._getMidiNote(id,k); if(m!==null){this.playerNotes.delete(m);this._updateChordDisplay();}}};
+    }
+    _midiToNoteName(midi) { const octave = Math.floor(midi / 12) - 1; return this.NOTE_NAMES[midi % 12] + octave; }
+    _updateChordDisplay() { this.currentChordName = this._getChordName(new Set(Array.from(this.playerNotes).map(n=>n%12))); this.isCorrectChord = this._checkChordMatch(); }
+    _getChordName(noteSet) { if (noteSet.size < 2) return ''; const notes = Array.from(noteSet).sort((a,b)=>a-b); for (let i=0;i<notes.length;i++){ const r=notes[i], intervals = notes.map(n=>(n-r+12)%12).sort((a,b)=>a-b).join(','); const type=this.CHORD_TYPES[intervals]; if(type)return `${this.NOTE_NAMES[r]} ${type}`;} return '...'; }
+    _getMidiNote(id, k) { if(typeof id==='number')return id; if(k&&k.dataset&&k.dataset.midiNote){return parseInt(k.dataset.midiNote,10)+(window.octaveShift||0)*12;} return null; }
+    _initStars(count) { if(!this.canvas)return; this.stars=[];for(let i=0;i<count;i++)this.stars.push({x:Math.random()*this.canvas.width,y:Math.random()*this.canvas.height,size:Math.random()*1.5+.5,speed:Math.random()*.3+.1});}
+    _startGame() { this.score=0; this.currentWaveNumber=1; this.aliens=[]; this.lasers=[]; this.playerNotes.clear(); this.lives=3; this._updateChordDisplay(); this.gameState='playing'; if(this.difficultySelector)this.difficultySelector.disabled=true; this._spawnAlienWave(); if(this.gameLoop)clearInterval(this.gameLoop); this.gameLoop=setInterval(()=>this._update(),1000/60);}
+    _gameOver() { this.gameState='idle'; this.playerNotes.clear(); this._updateChordDisplay(); if(this.difficultySelector)this.difficultySelector.disabled=false; if(this.gameLoop){clearInterval(this.gameLoop);this.gameLoop=null;} this._createDeathSound(); this._draw();}
+    _triggerCelebration() { this.celebrationFlash=8; this.celebrationChordName=this.currentChordName; this.celebrationTimer=60; this._createCelebrationSound(); }
+    _update() {
+        if(this.celebrationTimer>0)this.celebrationTimer--; if(this.celebrationFlash>0)this.celebrationFlash--; if(this.hurtFlash>0)this.hurtFlash--; if(this.gameState!=='playing')return;
+        this.stars.forEach(s=>{s.y+=s.speed;if(s.y>this.canvas.height){s.y=0;s.x=Math.random()*this.canvas.width;}});
+        this.lasers.forEach((l,i)=>{l.y-=6;if(l.y<0)this.lasers.splice(i,1);});
+        const speed=Math.min(this.maxAlienSpeed,this.alienBaseSpeed+((this.currentWaveNumber-1)*this.alienSpeedIncreasePerWave));
+        this.aliens.forEach((a, i)=>{
+            a.y+=speed; a.legPhase=(a.legPhase+.2)%(Math.PI*2); a.eyeMoveTimer--; if(a.eyeMoveTimer<=0){a.eyeTargetOffsetX=(Math.random()-.5)*2;a.eyeMoveTimer=30+Math.random()*90;} a.eyeOffsetX+=(a.eyeTargetOffsetX-a.eyeOffsetX)*.1; 
+            if(this.canvas&&a.y>this.canvas.height-20){this.aliens.splice(i,1); this.lives--; this.hurtFlash=10; this._createHurtSound(); if(this.lives<=0)this._gameOver();}
+        });
+        if(this.gameState!=='playing')return;
+        for(let l=this.lasers.length-1;l>=0;l--){for(let a=this.aliens.length-1;a>=0;a--){const al=this.aliens[a],ls=this.lasers[l];if(ls.x>al.x-12&&ls.x<al.x+12&&ls.y>al.y-12&&ls.y<al.y+12){this._createExplosion(al.x,al.y);this.aliens.splice(a,1);this.lasers.splice(l,1);this.score+=10;break;}}}
+        if(this.aliens.length===0&&this.gameState==='playing'){this.score+=100;this.currentWaveNumber++;this._spawnAlienWave();} this._draw();
+    }
+    _spawnAlienWave() {
+        if(!this.canvas)return; const scale=this.scales[this.scaleType]; let octR=1,octO=0;
+        if(this.difficulty==='medium')octR=2; if(this.difficulty==='pro'){octR=6;octO=-24;} const randOct=Math.floor(Math.random()*octR)*12;
+        const randDeg=Math.floor(Math.random()*scale.length); const root=this.rootNote+scale[randDeg]+randOct+octO;
+        let pool=[['maj','min','dim']]; if(this.score>=10)pool.push(['maj7','min7','dom7']); if(this.score>=20)pool.push(['maj9','min9']); if(this.score>=30)pool.push(['min11']); if(this.score>=40)pool.push(['dom13']);
+        const sPool=pool[Math.floor(Math.random()*pool.length)]; let type=sPool[Math.floor(Math.random()*sPool.length)]; if(!this.chordFormulas[type])type='maj';
+        let notes=this.chordFormulas[type].map(i=>(root+i)); if(this.difficulty==='pro'&&Math.random()<.33){const bass=(root-12);if(!notes.includes(bass))notes.push(bass);}
+        const yPos=this.canvas.height*.15; 
+        this.aliens = notes.filter(n => n >= 36 && n <= 108).map(n => {
+            const pos = window.midiKeyPositions[n]; if(!pos) return null;
+            return {note: n, x: pos.left + pos.width/2, y: yPos, legPhase: Math.random()*Math.PI*2, eyeOffsetX:0, eyeTargetOffsetX:0, eyeMoveTimer:0 };
+        }).filter(Boolean); // Filter out any nulls if notes are outside the keyboard range
+    }
+    _checkChordMatch() { if(this.aliens.length===0)return false; const aNotes=new Set(this.aliens.map(a=>a.note)); return this.playerNotes.size===aNotes.size&&[...aNotes].every(n=>this.playerNotes.has(n));}
+    _checkPlayerInput() { if(this.isCorrectChord){this._triggerCelebration();this.aliens.forEach(a=>{this.lasers.push({x:a.x,y:this.canvas.height-40});});this._createLaserSound();}}
+    _drawPixelAlien(ctx, alien) {
+        const pz = 3; const bodyColor = '#03dac5', appendageColor = '#8a70d6', eyeColor = '#FFFFFF', pupilColor = '#000000';
+        const body = [[0,1,1,1,1,0],[1,1,1,1,1,1],[1,1,0,0,1,1],[1,1,1,1,1,1],[0,1,0,0,1,0]];
+        const legFrames =[[[1,0,0,0,0,1],[0,1,0,0,1,0]],[[0,1,0,0,1,0],[0,0,1,1,0,0]]];
+        const legs = legFrames[Math.sin(alien.legPhase) > 0 ? 0 : 1];
+        const drawPixels=(m,ox,oy,c)=>{ctx.fillStyle=c;m.forEach((r,ri)=>r.forEach((p,ci)=>{if(p===1)ctx.fillRect(alien.x+ox+ci*pz,alien.y+oy+ri*pz,pz,pz)}));}
+        drawPixels(body,-3*pz,0,bodyColor); drawPixels(legs,-3*pz,5*pz,bodyColor); drawPixels([[1]],-2*pz,-1*pz,appendageColor); drawPixels([[1]],3*pz,-1*pz,appendageColor);
+        ctx.fillStyle=eyeColor; ctx.fillRect(alien.x-1*pz,alien.y+2*pz,2*pz,pz); ctx.fillStyle=pupilColor; ctx.fillRect(alien.x-1*pz+Math.round(alien.eyeOffsetX)*pz,alien.y+2*pz,pz,pz);
+    }
+    _draw() {
+        if(!this.canvas||!this.ctx)return; const ctx=this.ctx, {width,height}=this.canvas; ctx.fillStyle='#0d0221';ctx.fillRect(0,0,width,height);
+        const glow=(c,b)=>{ctx.shadowBlur=b;ctx.shadowColor=c;}, unGlow=()=>{ctx.shadowBlur=0;};
+        ctx.fillStyle='rgba(255,255,255,0.7)';this.stars.forEach(s=>{ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,2*Math.PI);ctx.fill();});
+        const hY=height*.55,vX=width/2; ctx.strokeStyle='rgba(255,7,235,0.25)';ctx.lineWidth=1.5;
+        for(let i=0;i<12;i++){const p=Math.pow(i/11,2),y=hY+p*(height-hY);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();}
+        for(let i=0;i<=20;i++){const p=i/20,xH=p*(width*.9),xB=vX+(i*(width/10));ctx.beginPath();ctx.moveTo(vX-xH,hY);ctx.lineTo(vX-xB,height);ctx.stroke();ctx.beginPath();ctx.moveTo(vX+xH,hY);ctx.lineTo(vX+xB,height);ctx.stroke();}
+        
+        // Draw all bottom note names
+        ctx.font='bold 12px "Consolas",monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+        const requiredNotes = new Set(this.aliens.map(a => a.note));
+        for (let midi = 36; midi <= 108; midi++) {
+            const pos = window.midiKeyPositions[midi]; if(!pos) continue;
+            const x = pos.left + pos.width / 2;
+            if (requiredNotes.has(midi)) { glow('#03dac5',10); ctx.fillStyle='#03dac5';} 
+            else { ctx.fillStyle='rgba(240,196,255,0.2)'; }
+            ctx.fillText(this._midiToNoteName(midi), x, height-5);
+            if (requiredNotes.has(midi)) unGlow();
+        }
+
+        if (this.gameState === 'idle') {
+            glow('#ff07eb', 25); ctx.fillStyle = '#ff07eb'; ctx.font = 'bold 52px "Consolas", monospace'; ctx.textAlign = 'center';
+            if (this.currentWaveNumber > 1 || this.score > 0) {
+                ctx.fillText('GAME OVER', width/2, height/2 - 35);
+                glow('#03dac5', 15); ctx.fillStyle = '#03dac5'; ctx.font = 'bold 28px "Consolas", monospace'; ctx.fillText(`FINAL SCORE: ${this.score}`, width/2, height/2 + 35);
+                ctx.font = 'bold 24px "Consolas", monospace'; ctx.fillText(`Click to RESTART`, width/2, height/2 + 80);
+            } else { ctx.fillText('Click to START', width/2, height/2); }
+            unGlow();
+        } else if(this.gameState==='playing'){
+            this.playerNotes.forEach(n => { const pos = window.midiKeyPositions[n]; if(!pos) return; const x = pos.left + pos.width/2; glow('#03dac5',15); ctx.fillStyle='#03dac5'; ctx.beginPath(); ctx.moveTo(x,height-10); ctx.lineTo(x-8,height-30); ctx.lineTo(x+8,height-30); ctx.closePath(); ctx.fill(); unGlow(); });
+            this.aliens.forEach(a=>this._drawPixelAlien(ctx, a));
+            this.lasers.forEach(l=>{glow('#ff07eb',20);ctx.fillStyle='#ff07eb';ctx.fillRect(l.x-3,l.y+5,6,10);ctx.fillStyle='#fff';ctx.fillRect(l.x-1.5,l.y,3,15);unGlow();});
+            ctx.font='bold 20px "Consolas",monospace';ctx.textAlign='left';glow('#e0e7ff',8);ctx.fillStyle='#e0e7ff';ctx.fillText(`SCORE: ${this.score}`,15,30);
+            if(this.isCorrectChord){glow('#7CFFCB',15);ctx.fillStyle='#7CFFCB';}else{glow('#f0c4ff',8);ctx.fillStyle='#f0c4ff';}
+            ctx.fillText(`PLAYING: ${this.currentChordName}`,15,60);unGlow();
+            ctx.textAlign='right';glow('#e0e7ff',8);ctx.fillStyle='#e0e7ff';ctx.fillText(`WAVE: ${this.currentWaveNumber}`,width-45,30);unGlow();
+            for(let i=0;i<this.lives;i++){glow('#ff07eb',10);ctx.fillStyle='#ff07eb';ctx.beginPath();ctx.moveTo(width-25-i*25,15);ctx.bezierCurveTo(width-30-i*25,5,width-45-i*25,5,width-45-i*25,15);ctx.bezierCurveTo(width-45-i*25,25,width-25-i*25,30,width-25-i*25,15);ctx.fill();unGlow();}
+        }
+        
+        if(this.celebrationTimer>0){ctx.save();ctx.globalAlpha=Math.min(1,this.celebrationTimer/30);glow('#7CFFCB',25);ctx.fillStyle='#FFFFFF';ctx.font='bold 64px "Consolas",monospace';ctx.textAlign='center';ctx.fillText(this.celebrationChordName,width/2,height/2);ctx.restore();}
+        if(this.celebrationFlash>0){ctx.fillStyle=`rgba(124,255,203,${this.celebrationFlash*0.05})`;ctx.fillRect(0,0,width,height);}
+        if(this.hurtFlash>0){ctx.fillStyle=`rgba(255,20,20,${this.hurtFlash*0.03})`;ctx.fillRect(0,0,width,height);}
+        ctx.fillStyle=`rgba(10,0,20,0.08)`;for(let y=0;y<height;y+=4){ctx.fillRect(0,y,width,2);}
+    }
+    _createDeathSound(){if(!this.audioContext)return;const n=this.audioContext.currentTime,d=.8,o=this.audioContext.createOscillator(),g=this.audioContext.createGain();o.type='sawtooth';o.frequency.setValueAtTime(220,n);o.frequency.exponentialRampToValueAtTime(40,n+d);g.gain.setValueAtTime(.4,n);g.gain.exponentialRampToValueAtTime(1e-3,n+d);o.connect(g).connect(this.nodes.output);o.start(n);o.stop(n+d);}
+    _createHurtSound(){if(!this.audioContext)return;const n=this.audioContext.currentTime,d=.2,o=this.audioContext.createOscillator(),g=this.audioContext.createGain();o.type='square';o.frequency.setValueAtTime(160,n);o.frequency.exponentialRampToValueAtTime(155,n+d);g.gain.setValueAtTime(.3,n);g.gain.exponentialRampToValueAtTime(1e-3,n+d);o.connect(g).connect(this.nodes.output);o.start(n);o.stop(n+d);}
+    _createCelebrationSound(){if(!this.audioContext)return;const n=this.audioContext.currentTime,f=[523.25,659.25,783.99,1046.5];for(let i=0;i<f.length;i++){const o=this.audioContext.createOscillator(),g=this.audioContext.createGain();o.type='sine';o.frequency.value=f[i];g.gain.setValueAtTime(0,n+i*.04);g.gain.linearRampToValueAtTime(.3,n+i*.04+.01);g.gain.exponentialRampToValueAtTime(1e-4,n+.3);o.connect(g).connect(this.nodes.output);o.start(n+i*.04);o.stop(n+.4);}}
+    _createLaserSound(){if(!this.audioContext)return;const n=this.audioContext.currentTime,o=this.audioContext.createOscillator(),g=this.audioContext.createGain();o.type="square";o.frequency.setValueAtTime(880,n);o.frequency.exponentialRampToValueAtTime(220,n+.1);g.gain.setValueAtTime(.2,n);g.gain.exponentialRampToValueAtTime(1e-4,n+.15);o.connect(g).connect(this.nodes.output);o.start(n);o.stop(n+.15);}
+    _createExplosion(x,y){if(!this.audioContext)return;const n=this.audioContext.currentTime,d=.2,o=this.audioContext.createOscillator(),g=this.audioContext.createGain();o.type='sine';o.frequency.setValueAtTime(120,n);o.frequency.exponentialRampToValueAtTime(30,n+.15);g.gain.setValueAtTime(.7,n);g.gain.exponentialRampToValueAtTime(1e-3,n+d);o.connect(g).connect(this.nodes.output);o.start(n);o.stop(n+d);const s=this.audioContext.createBufferSource(),z=this.audioContext.sampleRate*d,b=this.audioContext.createBuffer(1,z,this.audioContext.sampleRate),a=b.getChannelData(0);for(let i=0;i<z;i++)a[i]=2*Math.random()-1;s.buffer=b;const ng=this.audioContext.createGain();ng.gain.setValueAtTime(.3,n);ng.gain.exponentialRampToValueAtTime(1e-3,n+d);s.connect(ng).connect(this.nodes.output);s.start(n);}
+    getHTML() { return `<div class="control-row"><label for="ci_difficulty">Difficulty:</label><select id="ci_difficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="pro">Pro</option></select></div><div class="control-row"><label for="ci_key">Key:</label><select id="ci_key"></select><label for="ci_scale">Scale:</label><select id="ci_scale"></select></div><div class="control-row"><label for="ci_game_volume">Game Vol:</label><input type="range" id="ci_game_volume" min="0" max="1" step="0.05" value="0.4"></div><canvas id="ci_canvas" width="980" height="400" class="display-canvas" style="background-color:#0d0221; margin-top:10px;"></canvas>`; }
+    initUI(container) {
+        this.canvas=container.querySelector('#ci_canvas');this.ctx=this.canvas.getContext('2d');this.keySelector=container.querySelector('#ci_key');this.scaleSelector=container.querySelector('#ci_scale');this.difficultySelector=container.querySelector('#ci_difficulty');const gVol=container.querySelector('#ci_game_volume');
+        this._initStars(250);['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].forEach((n,i)=>{this.keySelector.innerHTML+=`<option value="${60+i}">${n}</option>`;});Object.keys(this.scales).forEach(s=>{this.scaleSelector.innerHTML+=`<option value="${s}">${s.replace('_',' ')}</option>`;});
+        this.keySelector.value=this.rootNote.toString();this.scaleSelector.value=this.scaleType;this.difficultySelector.value=this.difficulty;
+        this.canvas.addEventListener('click', () => { if (this.gameState === 'idle') this._startGame(); });
+        this.difficultySelector.addEventListener('change',e=>{this.difficulty=e.target.value;});this.keySelector.addEventListener('change',e=>{this.rootNote=parseInt(e.target.value,10);});this.scaleSelector.addEventListener('change',e=>{this.scaleType=e.target.value;});gVol.addEventListener('input',e=>{this.nodes.output.gain.value=parseFloat(e.target.value);});
+        document.addEventListener('keyup',e=>{const t=e.target;if(t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA')return;if(this.gameState==='playing'){this._updateChordDisplay();}});this._draw();
+    }
+}
+if (typeof window.playNote === 'function') window.registerSynthModule(ChordInvadersModule);
+        // --- END OF ChordInvadersModule.js CODE ---
+    </script>
+    
+    <script>
+        // --- COMPUTER KEYBOARD INPUT HANDLER ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.audioContext) return; const KEY_TO_NOTE_MAP = {'a':60,'s':62,'d':64,'f':65,'g':67,'h':69,'j':71,'k':72,'l':74,';':76,'w':61,'e':63,'t':66,'y':68,'u':70,'o':73,'p':75}; const pressed = new Set();
+            document.addEventListener('keydown', e => {
+                const t = e.target; if (e.repeat || t.tagName==='INPUT'||t.tagName==='SELECT') return; 
+                const k = e.key.toLowerCase(); if (!KEY_TO_NOTE_MAP[k] || pressed.has(k)) return;
+                pressed.add(k); const n = KEY_TO_NOTE_MAP[k]+(window.octaveShift*12); window.playNote(n,null,100);
+                const keyEl = document.querySelector(`[data-midi-note="${n}"]`); if (keyEl) keyEl.classList.add('active-key');
+            });
+            document.addEventListener('keyup', e => {
+                const k=e.key.toLowerCase(); if(!KEY_TO_NOTE_MAP[k]||!pressed.has(k))return; pressed.delete(k);
+                const n = KEY_TO_NOTE_MAP[k]+(window.octaveShift*12); window.stopNote(n);
+                const keyEl = document.querySelector(`[data-midi-note="${n}"]`); if (keyEl) keyEl.classList.remove('active-key');
+            });
+        });
+    </script>
+
+    <script>
+        // --- MIDI I/O HANDLER ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.requestMIDIAccess) { console.log("Web MIDI not supported."); return; }
+            let midiAccess = null;
+            const midiInSelect = document.getElementById('midi_in_select');
+            const midiOutSelect = document.getElementById('midi_out_select');
+            function onMsg(message) {
+                const [status, note, velocity] = message.data, command = status >> 4;
+                const keyEl = document.querySelector(`[data-midi-note="${note}"]`);
+                if (command === 9 && velocity > 0) { window.playNote(note, null, velocity); if (keyEl) keyEl.classList.add('active-key'); } 
+                else if (command === 8 || (command === 9 && velocity === 0)) { window.stopNote(note); if (keyEl) keyEl.classList.remove('active-key'); }
+            }
+            function setupMidiListeners() {
+                const selectedInputId = midiInSelect.value;
+                for (let input of midiAccess.inputs.values()) {
+                    input.onmidimessage = (selectedInputId === 'all' || selectedInputId === input.id) ? onMsg : null;
+                }
+            }
+            function populateDevices() {
+                if (!midiAccess) return;
+                const currentIn = midiInSelect.value;
+                midiInSelect.innerHTML = '<option value="all">Listen to All</option>';
+                for (let input of midiAccess.inputs.values()) midiInSelect.innerHTML += `<option value="${input.id}">${input.name}</option>`;
+                midiInSelect.value = midiAccess.inputs.has(currentIn) ? currentIn : 'all';
+                setupMidiListeners();
+                const currentOut = midiOutSelect.value;
+                midiOutSelect.innerHTML = '<option value="">None</option>';
+                for (let output of midiAccess.outputs.values()) midiOutSelect.innerHTML += `<option value="${output.id}">${output.name}</option>`;
+                midiOutSelect.value = midiAccess.outputs.has(currentOut) ? currentOut : '';
+                window.selectedMidiOutput = midiAccess.outputs.get(midiOutSelect.value) || null;
+            }
+            function onMIDISuccess(midi) {
+                midiAccess = midi;
+                populateDevices();
+                midiInSelect.onchange = setupMidiListeners;
+                midiOutSelect.onchange = () => { window.selectedMidiOutput = midiAccess.outputs.get(midiOutSelect.value) || null; };
+                midiAccess.onstatechange = populateDevices;
+            }
+            navigator.requestMIDIAccess({ sysex: false }).then(onMIDISuccess, () => console.error('MIDI Access failed.'));
+        });
+    </script>
+
+    <script>
+        // --- UI/KEYBOARD SCRIPT (6-OCTAVE with QWERTY LABELS) ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.audioContext) {
+                 const audioControls = document.getElementById('audio-controls-container'); if(audioControls) audioControls.style.display = 'none';
+                 const keyboardArea = document.getElementById('simulated-keyboard-area'); if(keyboardArea) keyboardArea.innerHTML = "<p style='color:red; text-align:center;'>Simulated keyboard disabled.</p>";
+                 return;
+            }
+            const keysVol = document.getElementById('keys_volume'); if (keysVol && window.keysMasterGain) { keysVol.addEventListener('input', e => { window.keysMasterGain.gain.value = parseFloat(e.target.value); }); window.keysMasterGain.gain.value = parseFloat(keysVol.value); }
+
+            const kbContainer=document.getElementById('simulated-keyboard'), ctrlContainer=document.getElementById('keyboard-controls');
+            if (!kbContainer || !ctrlContainer) return;
+            
+            const KW=20,KB=12,KH=100, START_MIDI=36, END_MIDI=108; // C2 to C8 (6 octaves)
+            const QWERTY_MAP = {'a':60,'s':62,'d':64,'f':65,'g':67,'h':69,'j':71,'k':72,'l':74,';':76,'w':61,'e':63,'t':66,'y':68,'u':70,'o':73,'p':75};
+            const NOTE_TO_QWERTY_MAP = {};
+            for(const key in QWERTY_MAP) { NOTE_TO_QWERTY_MAP[QWERTY_MAP[key]] = key.toUpperCase(); }
+
+            kbContainer.style.height=KH+'px'; let wc=0; const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+            const isBlack=m=>[1,3,6,8,10].includes(m%12); const midiToName=m=>{const o=Math.floor(m/12)-1;return NOTE_NAMES[m%12]+o;};
+
+            for (let midi = START_MIDI; midi <= END_MIDI; midi++) {
+                const k=document.createElement('button'); k.dataset.midiNote=midi; k.classList.add('key');
+                let keyLeft, keyWidth;
+                if(!isBlack(midi)){keyWidth=KW;keyLeft=wc*KW;k.classList.add('white-key');k.style.left=keyLeft+'px';k.style.width=keyWidth+'px';k.style.height=KH+'px';wc++;}
+                else{keyWidth=KB;keyLeft=wc*KW-KB/2;k.classList.add('black-key');k.style.left=keyLeft+'px';k.style.width=keyWidth+'px';k.style.height=(KH*.6)+'px';}
+                window.midiKeyPositions[midi] = { left: keyLeft, width: keyWidth };
+                let a=false; const gi=()=>window.registeredModules.chordInvadersModule;
+                const p=e=>{e.preventDefault();const i=gi();if(a||!i)return;a=true;k.classList.add('active-key');window.playNote(midi,null,100,k);};
+                const s=e=>{e.preventDefault();const i=gi();if(!a||!i)return;a=false;k.classList.remove('active-key');window.stopNote(midi,k);};
+                k.addEventListener('mousedown',p);k.addEventListener('mouseup',s);k.addEventListener('mouseleave',e=>{if(a)s(e);});
+                k.addEventListener('touchstart',p,{passive:false});k.addEventListener('touchend',s,{passive:false});
+                kbContainer.appendChild(k);
+            }
+            kbContainer.style.width=(wc*KW)+'px';
+
+            const updateQWERTYDisplay = () => {
+                document.getElementById('octave-display').textContent = `QWERTY OCTAVE: C${4+window.octaveShift}`;
+                kbContainer.querySelectorAll('.key-label').forEach(l => l.remove());
+                kbContainer.querySelectorAll('.key').forEach(k => { 
+                    const baseMidi = parseInt(k.dataset.midiNote, 10);
+                    k.textContent = midiToName(baseMidi);
+                    const qwertyNote = NOTE_TO_QWERTY_MAP[baseMidi - (window.octaveShift*12)];
+                    if(qwertyNote && !isBlack(baseMidi)) {
+                        const label = document.createElement('div');
+                        label.className = 'key-label';
+                        label.textContent = qwertyNote;
+                        label.style.width = KW + 'px';
+                        label.style.left = k.style.left;
+                        label.style.top = (KH + 5) + 'px';
+                        kbContainer.appendChild(label);
+                    }
+                });
+            };
+
+            const od=document.createElement('span');od.id='octave-display';
+            const ob=document.createElement('button');ob.textContent='OCT +';ob.addEventListener('click',()=>{window.octaveShift=Math.min(3,window.octaveShift+1);updateQWERTYDisplay();});
+            const db=document.createElement('button');db.textContent='OCT -';db.addEventListener('click',()=>{window.octaveShift=Math.max(-2,window.octaveShift-1);updateQWERTYDisplay();});
+            ctrlContainer.append(db,od,ob);
+
+            updateQWERTYDisplay();
+        });
+    </script>
+</body>
+</html>
